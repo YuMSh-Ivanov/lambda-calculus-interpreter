@@ -221,6 +221,9 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
           throw new Error(`expected '(' or variable, found ${expression[idx]} at index ${idx}`)
         }
         if (vars[result] === undefined) {
+          if (/[A-Z]/.test(result[0])) {
+            throw new Error(`undefined macro variable ${result} at index ${idx}`);
+          }
           return result;
         } else {
           return vars[result];
@@ -236,7 +239,7 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
         throw new Error("empty variable name after lambda");
       }
       const v = expression.substring(start, idx);
-      if (/A-Z/.test(v[0])) {
+      if (/[A-Z]/.test(v[0])) {
         throw new Error(`variable in lambda cannot start with uppercase letter (at index ${idx})`)
       }
       return v
@@ -277,7 +280,6 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
         return `<span style="color: #ff0000">Parsing error: ${e.message}</span>`
       }
       while (true) {
-        console.log(lambda);
         const l1 = lambda.betaReduceNormal();
         if (l1 == null) {
           return lambda.toString();
