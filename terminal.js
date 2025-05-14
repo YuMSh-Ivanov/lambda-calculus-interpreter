@@ -89,6 +89,15 @@ String.prototype.substitute = function(map) {
   }
 }
 
+const tags = {
+  p(html) {
+    return '<p>' + html + "</p>"
+  },
+  red(html) {
+    return '<span style="color: #ff0000">' + html + "</span>"
+  }
+};
+
 var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
   const cmdLine = document.querySelector(cmdLineContainer);
   const output = document.querySelector(outputContainer);
@@ -139,7 +148,7 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
   }
 
   function setOption(option, value) {
-    return '<span style="color: #ff0000">Options aren\'t currently supported :(</span>';
+    return tags.red("Options aren't currently supported :(");
   }
 
   this.variables = {};
@@ -254,35 +263,34 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
     const optionRegex = /^:set\s+(\w+)\s+(\S+)$/;
     const optionMatch = cmd.match(optionRegex);
     if (optionMatch) {
-      return setOption(optionMatch[1], optionMatch[2]);
+      return tags.p(setOption(optionMatch[1], optionMatch[2]));
     }
 
     const assignment = cmd.split(":=");
     if (assignment.length === 2) {
       const varname = assignment[0].trim();
       if (!/[A-Z]/.test(varname[0])) {
-        return `<span style="color: #ff0000">Macro should start with upper letter</span>`;
+        return tags.p(tags.red("Macro should start with upper letter"));
       }
       try {
         this.variables[varname] = parseLambda(assignment[1].trim())
-        console.log(this.variables);
         return undefined;
       } catch (e) {
-        return `<span style="color: #ff0000">Parsing error: ${e.message}</span>`;
+        return tags.p(tags.red(`Parsing error: ${e.message}`));
       }
     } else if (assignment.length >= 3) {
-      return '<span style="color: #ff0000">More than one := in one expression found.</span>'
+      return tags.p(tags.red('More than one := in one expression found.'));
     } else {
       var lambda;
       try {
         lambda = parseLambda(cmd);
       } catch (e) {
-        return `<span style="color: #ff0000">Parsing error: ${e.message}</span>`
+        return tags.p(tags.red(`Parsing error: ${e.message}`));
       }
       while (true) {
         const l1 = lambda.betaReduceNormal();
         if (l1 == null) {
-          return lambda.toString();
+          return tags.p(lambda.toString());
         }
         lambda = l1;
       }
@@ -318,7 +326,7 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
 
   function output_(html) {
     if (html !== undefined) {
-      output.insertAdjacentHTML('beforeEnd', '<p>' + html + '</p>');
+      output.insertAdjacentHTML('beforeEnd', html);
     }
   }
 
