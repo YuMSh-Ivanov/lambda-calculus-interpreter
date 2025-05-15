@@ -17,6 +17,15 @@ class Lambda {
     }
   }
 
+  betaReduceApplicative() {
+    const e1 = this.expression.betaReduceApplicative();
+    if (e1 === null) {
+      return null;
+    } else {
+      return new Lambda(this.variable, e1);
+    }
+  }
+
   substitute(map) {
     if (map[this.variable] === undefined) {
       return new Lambda(this.variable, this.expression.substitute(map));
@@ -72,12 +81,34 @@ class Apply {
     }
   }
 
+  betaReduceApplicative() {
+    const l1 = this.lhs.betaReduceApplicative();
+    if (l1 !== null) {
+      return new Apply(l1, this.rhs);
+    }
+    const r1 = this.rhs.betaReduceApplicative();
+    if (r1 !== null) {
+      return new Apply(this.lhs, r1);
+    }
+    if (this.lhs instanceof Lambda) {
+      const map = {}
+      map[this.lhs.variable] = this.rhs;
+      return this.lhs.expression.substitute(map);
+    } else {
+      return null;
+    }
+  }
+
   substitute(map) {
     return new Apply(this.lhs.substitute(map), this.rhs.substitute(map));
   }
 }
 
 String.prototype.betaReduceNormal = function() {
+  return null;
+}
+
+String.prototype.betaReduceApplicative = function() {
   return null;
 }
 
@@ -91,10 +122,13 @@ String.prototype.substitute = function(map) {
 
 const tags = {
   p(html) {
-    return '<p>' + html + "</p>"
+    return '<p>' + html + "</p>";
   },
   red(html) {
-    return '<span style="color: #ff0000">' + html + "</span>"
+    return '<span style="color: #ff0000">' + html + "</span>";
+  },
+  multiline(html) {
+    return '<div style="white-space: pre-wrap">' + html + "</div>";
   }
 };
 
@@ -145,10 +179,6 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
         this.value = this.value; // Sets cursor to end of input.
       }
     }
-  }
-
-  function setOption(option, value) {
-    return tags.red("Options aren't currently supported :(");
   }
 
   this.variables = {};
@@ -255,6 +285,39 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
     }
   }
 
+  const Strategy = Object.freeze({
+    NORMAL: "normal",
+    APPLICATIVE: "applicative",
+  });
+
+  this.options = {
+    "trace": false,
+    "strategy": Strategy.NORMAL
+  };
+
+  const setOption = (option, value) => {
+    switch (option) {
+      case "trace":
+        if (value === "off") {
+          this.options.trace = false;
+        } else if (value === "on") {
+          this.options.trace = true;
+        } else {
+          return tags.p(tags.red(`Option trace has only 'on' and 'off' states, but ${value} given`));
+        }
+        return undefined;
+      case "strategy":
+        if (Object.values(Strategy).includes(value)) {
+          this.options.strategy = value;
+        } else {
+          return tags.p(tags.red(`Option strategy has states in ${Object.values(Strategy)}, but ${value} given`));
+        }
+        return undefined;
+      default:
+        return tags.p(tags.red("Options aren't currently supported :("));
+    }
+  }
+
   const processInput = cmd => {
     if (cmd === "") {
       return undefined;
@@ -263,7 +326,7 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
     const optionRegex = /^:set\s+(\w+)\s+(\S+)$/;
     const optionMatch = cmd.match(optionRegex);
     if (optionMatch) {
-      return tags.p(setOption(optionMatch[1], optionMatch[2]));
+      return setOption(optionMatch[1], optionMatch[2]);
     }
 
     const assignment = cmd.split(":=");
@@ -287,12 +350,20 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
       } catch (e) {
         return tags.p(tags.red(`Parsing error: ${e.message}`));
       }
+      var reductions = 0;
+      var allReductions = ""
       while (true) {
-        const l1 = lambda.betaReduceNormal();
+        allReductions += `${lambda.toString()}\n`;
+        const l1 = this.options.strategy === Strategy.NORMAL ? lambda.betaReduceNormal() : lambda.betaReduceApplicative();
         if (l1 == null) {
-          return tags.p(lambda.toString());
+          if (this.options.trace) {
+            return tags.p(tags.multiline(allReductions + `${reductions} reductions`));
+          } else {
+            return tags.p(`${lambda.toString()}        ${reductions} reductions`);
+          }
         }
         lambda = l1;
+        reductions++;
       }
     }
   }
@@ -308,16 +379,36 @@ var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
       }
       histpos = history.length;
 
-      // Duplicate current input and append to output section.
-      const line = this.parentNode.parentNode.cloneNode(true);
-      line.removeAttribute('id')
-      line.classList.add('line');
-      const input = line.querySelector('input.cmdline');
-      input.autofocus = false;
-      input.readOnly = true;
-      output.appendChild(line);
+      const value = this.value.trim();
 
-      output_(processInput(this.value.trim()));
+      if (value.includes(';')) {
+        for (const v of value.split(';')) {
+          if (v.trim() === "") {
+            continue;
+          }
+          const line = this.parentNode.parentNode.cloneNode(true);
+          line.removeAttribute('id')
+          line.classList.add('line');
+          const input = line.querySelector('input.cmdline');
+          input.autofocus = false;
+          input.readOnly = true;
+          input.value = v.trim();
+          output.appendChild(line);
+          console.log(input);
+
+          output_(processInput(v.trim()));
+        }
+      } else {
+        const line = this.parentNode.parentNode.cloneNode(true);
+        line.removeAttribute('id')
+        line.classList.add('line');
+        const input = line.querySelector('input.cmdline');
+        input.autofocus = false;
+        input.readOnly = true;
+        output.appendChild(line);
+      
+        output_(processInput(value));
+      }
 
       window.scrollTo(0, getDocHeight());
       this.value = '';
